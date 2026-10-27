@@ -1,0 +1,15 @@
+{
+ "n_test_bona": 800,
+ "n_test_spoof": 240,
+ "minutiae_mean": 39.098571428571425,
+ "minutiae_median": 39.0,
+ "tdr02_all": 35.41666666666667,
+ "tdr02_all_boot_sd": 4.062334932543926,
+ "tdr02_k10": 35.33333333333333,
+ "tdr02_k10_sd": 1.3944333775567939,
+ "delta_k10": -0.08333333333334281,
+ "research_question_within_1pp": true,
+ "cnn_calls_all": 39.12019230769231,
+ "cnn_calls_k10": 10.0,
+ "speedup_k10_total": 1.6103885524094488
+}

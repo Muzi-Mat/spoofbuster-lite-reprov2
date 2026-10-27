@@ -168,26 +168,25 @@ def tables(summ, timing, mat, args, cfg):
 def figures(summ, timing, cfg, args):
     s0 = summ[summ.model_seed == summ.model_seed.min()]
     base = s0[s0.method == "all"].iloc[0]
-    fig, ax = plt.subplots(figsize=(3.4, 2.3))
+    # Plot the CHANGE from each all-minutiae baseline: the two absolute levels come from different data,
+    # so only the change with k is comparable between the paper and this reproduction.
+    fig, ax = plt.subplots(figsize=(3.4, 2.4))
+    ax.axhspan(-1, 1, color="#eeeeee", lw=0, label="$\\pm$1 point (research question)")
+    ax.axhline(0, color=MUTED, lw=0.8)
+    offsets = {"kmeans": -0.4, "nearest": 0.0, "random": 0.4}  # small x-offsets so error bars do not overlap
     for method, colour, marker, lab in (("kmeans", BLUE, "o", "Ours: k-means centroids"),
                                         ("nearest", AQUA, "D", "Ours: nearest minutia"),
                                         ("random", ORANGE, "^", "Ours: random minutiae")):
         d = s0[(s0.method == method) & (s0.rule == "w")].sort_values("k")
-        ax.errorbar(d.k, d.tdr02, yerr=d.tdr02_sd, color=colour, marker=marker, ms=4, capsize=2, label=lab)
+        ax.errorbar(d.k + offsets[method], d.tdr02 - base.tdr02, yerr=d.tdr02_sd, color=colour, marker=marker,
+                    ms=4, capsize=2, lw=1.3, label=lab)
     pk = PAPER[PAPER.k > 0]
-    ax.errorbar(pk.k, pk.tdr, yerr=pk.tdr_sd, color=INK, marker="s", ms=3.5, ls="--", lw=1, capsize=2,
+    ax.errorbar(pk.k, pk.tdr - 95.7, yerr=pk.tdr_sd, color=INK, marker="s", ms=3.5, ls="--", lw=1, capsize=2,
                 label="Paper (Table 2)")
-    ax.axhline(base.tdr02, color=BLUE, lw=1, ls=":")
-    ax.axhline(95.7, color=INK, lw=1, ls=":")
-    xmax = max(cfg["ks"] + [30])
-    ours_above = base.tdr02 >= 95.7  # put each baseline label on the side away from the other line
-    ax.text(xmax + 1, base.tdr02, "ours, all", va="bottom" if ours_above else "top", fontsize=6.5, color=INK)
-    ax.text(xmax + 1, 95.7, "paper, all", va="top" if ours_above else "bottom", fontsize=6.5, color=INK)
-    ax.set_xlim(2, xmax + 9)
     ax.set_xlabel("Patches per image, $k$")
-    ax.set_ylabel("TDR (%) @ FDR = 0.2%")
+    ax.set_ylabel("TDR change vs all minutiae (points)")
     ax.set_xticks(sorted(set(cfg["ks"]) | set(PAPER.k[PAPER.k > 0])))
-    ax.legend(fontsize=6.5, loc="lower right")
+    ax.legend(fontsize=6, loc="lower right", ncol=1)
     fig.tight_layout()
     fig.savefig(os.path.join(args.figures, "tdr_vs_k.pdf"))
     plt.close(fig)
@@ -215,7 +214,7 @@ def figures(summ, timing, cfg, args):
     from .minutiae import extract
     from .patches import select_points
     from .synthetic import fingerprint
-    img = fingerprint(np.random.default_rng(3), size=360)
+    img = np.clip(fingerprint(np.random.default_rng(3), size=360)[0], 0, 255).astype(np.uint8)
     feat = extract(img)
     c, _, w = select_points(feat, "kmeans", 10, 0)
     fig, axs = plt.subplots(1, 2, figsize=(3.4, 1.9))
@@ -279,6 +278,20 @@ def main():
                   CallsAll=f"{base.evals:.1f}")
     seeds = summ[(summ.method == "all")].set_index("model_seed").tdr02
     macros["TDRallSeedOne"] = f"{seeds.iloc[1]:.1f}" if len(seeds) > 1 else "--"
+    if len(seeds) > 1:  # second training seed: same quantities as the main text uses for seed 0
+        s1 = summ[summ.model_seed == seeds.index[1]]
+        a1 = s1[s1.method == "all"].iloc[0]
+        t1 = s1[(s1.method == "kmeans") & (s1.k == 10) & (s1.rule == "w")].iloc[0]
+        macros.update(TDRkTenSeedOne=f"{t1.tdr02:.1f}", TDRkTenSDSeedOne=f"{t1.tdr02_sd:.1f}",
+                      DeltaKTenSeedOne=f"{t1.tdr02 - a1.tdr02:+.1f}", TDRallBootSDSeedOne=f"{a1.tdr02_boot_sd:.1f}",
+                      TDRallOneSeedOne=f"{a1.tdr1:.1f}", TDRkTenOneSeedOne=f"{t1.tdr1:.1f}",
+                      DeltaOneKTenSeedOne=f"{t1.tdr1 - a1.tdr1:+.1f}")
+    macros["DeltaOneKTen"] = f"{k10.tdr1 - base.tdr1:+.1f}"
+    k5 = s0[(s0.method == "kmeans") & (s0.k == 5) & (s0.rule == "w")]
+    if len(k5):
+        macros["DeltaKFive"] = f"{k5.iloc[0].tdr02 - base.tdr02:+.1f}"
+    mt = mat.set_index("material")
+    macros.update(MatBest=f"{mt['all'].max():.1f}", MatWorst=f"{mt['all'].min():.1f}")
     if timing is not None:
         g = timing.groupby("k")[["total_ms", "cnn_ms", "minutiae_ms"]].mean()
         macros.update(MsAll=f"{g.loc[0, 'total_ms']:.0f}", MsKTen=f"{g.loc[10, 'total_ms']:.0f}",

@@ -3,6 +3,7 @@
 #
 #   Full run (needs the dataset, ~1.5-2 h on a Colab T4):   DATA_DIR=/path/to/data bash run_all.sh
 #   Tables + figures only, from committed results (no data, no GPU, ~1 min):  bash run_all.sh --report-only
+#   Synthetic stand-in experiment used in the write-up (~2.5 h on 2 CPU cores): bash run_all.sh --synthetic
 #   Synthetic smoke test of the whole pipeline (~3 min on CPU):               bash run_all.sh --smoke
 #
 # Committed checkpoints in checkpoints/ are reused; add --retrain to train from scratch.
@@ -15,21 +16,29 @@ for a in "$@"; do
   case "$a" in
     --report-only) MODE=report ;;
     --smoke) MODE=smoke ;;
+    --synthetic) MODE=synthetic ;;
     --retrain) EXTRA+=(--retrain) ;;
     *) echo "unknown option $a"; exit 1 ;;
   esac
 done
 
 if [ "$MODE" = report ]; then
-  python -m src.report
+  python -m src.report --synthetic   # the committed results come from the synthetic run
   exit 0
+fi
+
+if [ "$MODE" = synthetic ]; then
+  # Deterministic (seeded) synthetic dataset, regenerated from code, never committed
+  export DATA_DIR=work/synthetic_data
+  EXTRA+=(--synthetic)
+  [ -d "$DATA_DIR/bonafide" ] || python -m src.synthetic --out "$DATA_DIR"
 fi
 
 if [ "$MODE" = smoke ]; then
   # Separate output folders so the smoke test never touches the real results
   export WORK=work/smoke DATA_DIR=work/smoke/data
   EXTRA+=(--smoke --results work/smoke/results --checkpoints work/smoke/checkpoints --figures work/smoke/figures)
-  [ -d "$DATA_DIR" ] || python -m src.synthetic --out "$DATA_DIR" --n 60
+  [ -d "$DATA_DIR" ] || python -m src.synthetic --out "$DATA_DIR" --n_bona 60 --n_per_material 10
 fi
 
 : "${DATA_DIR:?Set DATA_DIR to the dataset root (bonafide/ and spoof/<material>/), see README}"

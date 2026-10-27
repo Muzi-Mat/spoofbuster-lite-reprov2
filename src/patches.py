@@ -22,24 +22,37 @@ def select_points(feat, method, k=None, seed=0):
     if method == "all" or n <= k:  # fewer minutiae than clusters -> clustering would be a no-op
         return xy, th, np.ones(n)
     if method in ("kmeans", "nearest"):
-        # n_init=1 so the seed is the only source of variation, matching the paper's repeat-over-initialisation
-        km = KMeans(n_clusters=k, n_init=1, random_state=seed).fit(xy)
-        cent = km.cluster_centers_.astype(np.float32)
-        weights = np.bincount(km.labels_, minlength=k).astype(np.float32)
+        cent, weights = kmeans_clusters(xy, k, seed)
         if method == "nearest":
-            # Our fix attempt: the CNN was trained on minutia-centred patches, but a centroid usually lies
-            # between minutiae. Snap each centroid to the closest real minutia so test patches look like
-            # training patches. Same clusters and weights as "kmeans"; only the patch centre moves.
-            idx = [np.argmin(((xy - c) ** 2).sum(1)) for c in cent]
+            idx = nearest_minutia(xy, cent)
             return xy[idx], th[idx], weights
         # A centroid has no minutia direction of its own; the paper does not say how it aligned these.
         # We use the ridge direction of the orientation field at the centroid (our choice, documented).
         dirs = np.array([orientation_at(feat, x, y) for x, y in cent])
         return cent, dirs, weights
     if method == "random":
-        idx = np.random.default_rng(seed).choice(n, k, replace=False)
+        idx = random_minutiae(n, k, seed)
         return xy[idx], th[idx], np.ones(k)
     raise ValueError(method)
+
+
+def kmeans_clusters(xy, k, seed):
+    """k-means on minutia coordinates. Returns centroids and cluster sizes (the paper's patch weights).
+
+    n_init=1 so the seed is the only source of variation, matching the paper's repeat-over-initialisation."""
+    km = KMeans(n_clusters=k, n_init=1, random_state=seed).fit(xy)
+    return km.cluster_centers_.astype(np.float32), np.bincount(km.labels_, minlength=k).astype(np.float32)
+
+
+def nearest_minutia(xy, cent):
+    """Our fix attempt: the CNN was trained on minutia-centred patches, but a centroid usually lies between
+    minutiae. Snapping each centroid to its closest real minutia makes test patches look like training
+    patches; clusters and weights stay the same, only the patch centre moves."""
+    return np.array([np.argmin(((xy - c) ** 2).sum(1)) for c in cent])
+
+
+def random_minutiae(n, k, seed):
+    return np.random.default_rng(seed).choice(n, k, replace=False)
 
 
 def extract_patch(img_u8, x, y, theta, size=96):

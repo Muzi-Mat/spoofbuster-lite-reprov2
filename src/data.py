@@ -36,8 +36,8 @@ def make_split(df, cfg):
     df = df.copy()
     df["split"] = "train"
     bona = df.index[df.label == 0].to_numpy()
-    # paper: 1,000 bona fide test images; on a smaller dataset fall back to 20%
-    n_test_b = min(cfg["n_test_bonafide"], int(round(0.2 * len(bona))))
+    # paper: 1,000 bona fide test images; a smaller dataset keeps half its bona fide images for training
+    n_test_b = min(cfg["n_test_bonafide"], len(bona) // 2)
     df.loc[rng.choice(bona, n_test_b, replace=False), "split"] = "test"
     # spoofs: stratified by material so every material appears in test
     for _, g in df[df.label == 1].groupby("material"):

@@ -32,6 +32,16 @@ SMOKE = dict(
 )
 
 
+# Synthetic stand-in run (the real dataset could not be obtained). Sized to run on a 2-core CPU overnight:
+# random initialisation because ImageNet weights could not be downloaded on that machine, fewer training
+# patches per image, and the k values from the proposal (5, 10, 15, 20). Every change is in the write-up.
+SYNTHETIC = dict(
+    ks=[5, 10, 15, 20], imagenet_init=False, train_patches_per_image=12, epochs=5,
+    lr=1e-3,  # from scratch needs a larger step than fine-tuning
+)
+SYNTHETIC_DATA = dict(n_bona=1600, n_per_material=200)  # 1,600 bona fide, 6 materials x 200 = 1,200 spoofs
+
+
 def get_args(description):
     p = argparse.ArgumentParser(description=description)
     p.add_argument("--data", default=os.environ.get("DATA_DIR"), help="dataset root with bonafide/ and spoof/<material>/")
@@ -40,11 +50,14 @@ def get_args(description):
     p.add_argument("--checkpoints", default="checkpoints")
     p.add_argument("--figures", default="figures")
     p.add_argument("--smoke", action="store_true", default=bool(os.environ.get("SMOKE")))
+    p.add_argument("--synthetic", action="store_true", help="settings for the synthetic stand-in run")
     p.add_argument("--retrain", action="store_true", help="train even if a checkpoint exists")
     p.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE",
                    help="override a setting, e.g. --set epochs=3 (any override must be reported in the write-up)")
     args = p.parse_args()
     cfg = dict(DEFAULTS)
+    if args.synthetic:
+        cfg.update(SYNTHETIC)
     if args.smoke:
         cfg.update(SMOKE)
     for kv in args.set:

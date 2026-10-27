@@ -58,6 +58,37 @@ def batches(x, y, bs, seed):
             yield x[idx, ..., None].astype(np.float32), y[idx]
 
 
+def bn_layers(layer):
+    for sub in getattr(layer, "layers", []):
+        if isinstance(sub, keras.layers.BatchNormalization):
+            yield sub
+        yield from bn_layers(sub)
+
+
+def recalibrate_bn(model, x, bs=256, n_batches=60, seed=0):
+    """Recompute BatchNorm running statistics with the final weights.
+
+    Why: trained from scratch with a large learning rate, the running means/variances (momentum 0.99) lag
+    behind the weights, and in inference mode the network then gave one constant output (validation AUC
+    stuck at 0.5 while training AUC rose). Forward passes in training mode with momentum set to give an
+    exact cumulative average replace the stale statistics; no weights are changed."""
+    bns = list(bn_layers(model))
+    old = [b.momentum for b in bns]
+    rng = np.random.default_rng(seed)
+    for i in range(n_batches):
+        for b in bns:
+            b.momentum = i / (i + 1)  # running = mean of the batch statistics seen so far
+        idx = np.sort(rng.choice(len(x), bs, replace=False))
+        model(x[idx, ..., None].astype(np.float32), training=True)
+    for b, m in zip(bns, old):
+        b.momentum = m
+
+
+def val_auc(model, xva, yva):
+    p = model.predict(xva[..., None].astype(np.float32), batch_size=512, verbose=0).ravel()
+    return float(keras.metrics.AUC()(yva, p))
+
+
 def main():
     args, cfg = get_args(__doc__)
     split = pd.read_csv(os.path.join(args.results, "split.csv"))
@@ -88,9 +119,16 @@ def main():
         hist = model.fit(ds, steps_per_epoch=len(xtr) // bs, epochs=cfg["epochs"],
                          validation_data=(xva[..., None].astype(np.float32), yva), validation_batch_size=512,
                          class_weight=class_weight, verbose=2)
+        history = {k: [float(v) for v in vals] for k, vals in hist.history.items()}
+        history["val_auc_before_bn_recal"] = val_auc(model, xva, yva)
+        recalibrate_bn(model, xtr, seed=seed)
+        history["val_auc_after_bn_recal"] = val_auc(model, xva, yva)
+        print(f"seed {seed}: val AUC {history['val_auc_before_bn_recal']:.3f} -> "
+              f"{history['val_auc_after_bn_recal']:.3f} after BatchNorm recalibration")
+        model.compile()  # drop the optimizer state: inference needs only the weights
         model.save(ckpt)
         with open(os.path.join(args.results, f"train_history_seed{seed}.json"), "w") as f:
-            json.dump({k: [float(v) for v in vals] for k, vals in hist.history.items()}, f, indent=1)
+            json.dump(history, f, indent=1)
 
 
 if __name__ == "__main__":
