@@ -102,6 +102,13 @@ def main():
     pos = ytr.mean()
     class_weight = {0: 0.5 / (1 - pos), 1: 0.5 / pos}
 
+    # Record what the models were trained on, so the write-up can state it (results/train_env.json)
+    gpus = tf.config.list_physical_devices("GPU")
+    name = tf.config.experimental.get_device_details(gpus[0]).get("device_name", "GPU") if gpus else None
+    with open(os.path.join(args.results, "train_env.json"), "w") as f:
+        json.dump({"gpu": name, "cpu_count": os.cpu_count(), "tensorflow": tf.__version__,
+                   "model_seeds": cfg["model_seeds"]}, f, indent=1)
+
     for seed in cfg["model_seeds"]:
         ckpt = os.path.join(args.checkpoints, f"mobilenet_seed{seed}.keras")
         if os.path.exists(ckpt) and not args.retrain:

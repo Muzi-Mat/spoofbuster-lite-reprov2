@@ -287,6 +287,21 @@ def main():
                       TDRallOneSeedOne=f"{a1.tdr1:.1f}", TDRkTenOneSeedOne=f"{t1.tdr1:.1f}",
                       DeltaOneKTenSeedOne=f"{t1.tdr1 - a1.tdr1:+.1f}")
     macros["DeltaOneKTen"] = f"{k10.tdr1 - base.tdr1:+.1f}"
+    # Across ALL training seeds: change at k=10 vs all minutiae, per seed
+    d02, d1, alls = [], [], []
+    for ms, g in summ.groupby("model_seed"):
+        a = g[g.method == "all"].iloc[0]
+        t = g[(g.method == "kmeans") & (g.k == 10) & (g.rule == "w")].iloc[0]
+        d02.append(t.tdr02 - a.tdr02); d1.append(t.tdr1 - a.tdr1); alls.append(a.tdr02)
+    d02, d1, alls = map(np.array, (d02, d1, alls))
+    sd = lambda v: float(v.std(ddof=1)) if len(v) > 1 else 0.0  # noqa: E731
+    words = {0: "none", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+    macros.update(NSeeds=words.get(len(d02), str(len(d02))),
+                  DeltaSeedsMean=f"{d02.mean():+.1f}", DeltaSeedsSD=f"{sd(d02):.1f}",
+                  DeltaSeedsMin=f"{d02.min():+.1f}", DeltaSeedsMax=f"{d02.max():+.1f}",
+                  DeltaOneSeedsMean=f"{d1.mean():+.1f}", DeltaOneSeedsSD=f"{sd(d1):.1f}",
+                  NSeedsPass=words.get(int((d02 >= -1).sum()), str(int((d02 >= -1).sum()))),
+                  AllSeedsMin=f"{alls.min():.1f}", AllSeedsMax=f"{alls.max():.1f}")
     k5 = s0[(s0.method == "kmeans") & (s0.k == 5) & (s0.rule == "w")]
     if len(k5):
         macros["DeltaKFive"] = f"{k5.iloc[0].tdr02 - base.tdr02:+.1f}"
@@ -298,6 +313,19 @@ def main():
                       SpeedupTotal=f"{g.loc[0, 'total_ms'] / g.loc[10, 'total_ms']:.1f}",
                       SpeedupCNN=f"{g.loc[0, 'cnn_ms'] / g.loc[10, 'cnn_ms']:.1f}",
                       MsMinutiae=f"{g.loc[0, 'minutiae_ms']:.0f}")
+    # Training settings, so the write-up states exactly the configuration that produced these numbers
+    macros.update(TrainInit="from ImageNet weights" if cfg["imagenet_init"] else "from scratch",
+                  NEpochs=str(cfg["epochs"]), LRexp=f"{int(round(np.log10(cfg['lr'])))}",
+                  PatchCap=str(cfg["train_patches_per_image"]))
+    h0 = os.path.join(args.results, f"train_history_seed{cfg['model_seeds'][0]}.json")
+    if os.path.exists(h0):
+        h = json.load(open(h0))
+        if "val_auc_after_bn_recal" in h:
+            macros.update(ValAUCBefore=f"{h['val_auc_before_bn_recal']:.3f}",
+                          ValAUCAfter=f"{h['val_auc_after_bn_recal']:.3f}")
+    tenv = os.path.join(args.results, "train_env.json")
+    gpu = json.load(open(tenv)).get("gpu") if os.path.exists(tenv) else None
+    macros["TrainHardware"] = f"an NVIDIA {gpu.replace('Tesla ', '')} GPU" if gpu else "a 2-core CPU"
     write(os.path.join(args.results, "numbers.tex"),
           "".join(f"\\newcommand{{\\{k}}}{{{v}}}\n" for k, v in macros.items()))
     print(json.dumps(headline, indent=1))

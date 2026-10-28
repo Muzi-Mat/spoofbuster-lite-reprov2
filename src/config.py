@@ -32,13 +32,22 @@ SMOKE = dict(
 )
 
 
-# Synthetic stand-in run (the real dataset could not be obtained). Sized to run on a 2-core CPU overnight:
-# random initialisation because ImageNet weights could not be downloaded on that machine, fewer training
-# patches per image, and the k values from the proposal (5, 10, 15, 20). Every change is in the write-up.
-SYNTHETIC = dict(
+# Synthetic stand-in runs (the real dataset could not be obtained). Two presets; SYNTHETIC picks one.
+# CPU: what fits a 2-core CPU overnight, trained from scratch because ImageNet weights could not be
+#      downloaded there, 12 training patches per image, 5 epochs.
+# T4:  a Colab T4 GPU: ImageNet initialisation (as fine-tuning is the usual MobileNet recipe), up to 48
+#      patches per image, 8 epochs, 4 training seeds. Every setting is reported in the write-up.
+SYNTHETIC_CPU = dict(
     ks=[5, 10, 15, 20], imagenet_init=False, train_patches_per_image=12, epochs=5,
     lr=1e-3,  # from scratch needs a larger step than fine-tuning
+    model_seeds=[0, 1],
 )
+SYNTHETIC_T4 = dict(
+    ks=[5, 10, 15, 20], imagenet_init=True, train_patches_per_image=48, epochs=8,
+    lr=1e-4,  # fine-tuning from ImageNet weights
+    model_seeds=[0, 1, 2, 3],
+)
+SYNTHETIC = SYNTHETIC_CPU  # colab_synthetic_t4.ipynb switches this line to SYNTHETIC_T4
 SYNTHETIC_DATA = dict(n_bona=1600, n_per_material=200)  # 1,600 bona fide, 6 materials x 200 = 1,200 spoofs
 
 

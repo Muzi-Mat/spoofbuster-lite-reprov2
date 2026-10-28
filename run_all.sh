@@ -18,6 +18,7 @@ for a in "$@"; do
     --smoke) MODE=smoke ;;
     --synthetic) MODE=synthetic ;;
     --retrain) EXTRA+=(--retrain) ;;
+    --set=*) EXTRA+=(--set "${a#--set=}") ;;
     *) echo "unknown option $a"; exit 1 ;;
   esac
 done

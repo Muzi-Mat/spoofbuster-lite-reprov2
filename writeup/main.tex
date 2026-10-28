@@ -21,9 +21,10 @@ instead of at every minutia, keeps fingerprint presentation-attack detection at 
 95.7\%) at FDR~=~0.2\%, while cutting phone inference time from 1,554~ms to 302~ms. The paper's data is
 gated by a Michigan State University agreement, and I could not obtain it, so I reimplemented the full
 pipeline and tested the claim's mechanism on seeded synthetic fingerprints. With 10 centroid patches, TDR
-changed by \DeltaKTen\ points from the all-minutiae baseline, within my one-point criterion. A second
-training seed, however, gave \DeltaKTenSeedOne, and the baseline's sampling error is \TDRallBootSD\
-points, so the effect is below what I can resolve. Clustering cut CNN time \SpeedupCNN$\times$ but total
+changed by \DeltaSeedsMean~$\pm$~\DeltaSeedsSD\ points from the all-minutiae baseline, averaged over
+\NSeeds\ training seeds (range \DeltaSeedsMin\ to \DeltaSeedsMax). Only \NSeedsPass\ of the \NSeeds\
+seeds met my one-point criterion, and the baseline's sampling error is \TDRallBootSD\ points, so the
+effect is below what my setup can resolve. Clustering cut CNN time \SpeedupCNN$\times$ but total
 latency only \SpeedupTotal$\times$, because minutiae extraction dominates. I also show that the paper's
 Table~2 is internally inconsistent.
 \end{abstract}
@@ -81,12 +82,13 @@ how centroid patches were rotated, so I align each one to the ridge orientation 
 \textbf{Classifier.} I use MobileNet-v1 ($\alpha=1$) with a $96\times96$ input, trained on minutia-centred
 patches that inherit their image's label. The final feature map is $3\times3$, so global average pooling
 matches the paper's $3\times3$ pool. I used Keras because TF-Slim needs TensorFlow~1.x. The paper gives
-no training recipe. On a 2-core CPU without ImageNet weights, I trained from scratch: Adam with learning
-rate $10^{-3}$, batch 128, 5 epochs, class-balanced loss, dropout 0.2, and at most 12 patches per image.
-For the first epochs, validation AUC sat at exactly 0.5 while training AUC rose: the BatchNorm running
-statistics lagged the weights, so inference outputs were constant. As a final training step I recompute
-those statistics with the final weights, without changing any weights. This raised seed-0 validation
-patch AUC from 0.813 to 0.842.
+no training recipe. On \TrainHardware\ I trained \TrainInit: Adam with learning rate $10^{\LRexp}$,
+batch 128, \NEpochs\ epochs, class-balanced loss, dropout 0.2, and at most \PatchCap\ patches per image.
+A first run trained from scratch on a CPU showed validation AUC stuck at exactly 0.5 for several epochs
+while training AUC rose: the BatchNorm running statistics lagged the weights, so inference outputs were
+constant. As a final training step I therefore recompute those statistics with the final weights,
+without changing any weights. For the reported seed-0 model, validation patch AUC is \ValAUCBefore\
+before this step and \ValAUCAfter\ after it.
 
 \textbf{Protocol.} One trained model scores every setting, as in the paper. For each
 $k\in\{5,10,15,20\}$, k-means is repeated with 5 seeds ($n_\text{init}=1$). The threshold is set per
@@ -120,6 +122,7 @@ flat from $k=10$ upwards, so on this point the claim reproduces: about 10 centro
 information for the classifier as all \CallsAll\ minutia patches. At FDR~=~1\%, where the threshold is
 less noisy, the change at $k=10$ is \DeltaOneKTen\ points.
 
+% REVISE AFTER T4 RUN: the next two paragraphs depend on the results.
 The absolute level does not reproduce, and was never expected to: \TDRall\% against 95.7\%. My detector
 is weak. It was trained from scratch for 5 epochs on 12 patches per image, and two of my synthetic
 materials are almost undetectable (Table~\ref{tab:mat}). ``No loss'' at 35\% TDR is weaker evidence than
@@ -152,16 +155,17 @@ coincide.
 \TDRunwTen~$\pm$~\TDRunwTenSD\%, no worse than the weighted rule. The paper motivates the weighting but
 never tests it. On my data it does not help.
 
-\textbf{A second training seed.} A model retrained with a different seed reaches \TDRallSeedOne\% with
-all minutiae (Table~\ref{tab:seeds}), against \TDRall\% for seed~0: retraining alone moves the
-baseline by more than the paper's whole $k=10$ effect. For seed~1, $k=10$ scores
-\TDRkTenSeedOne~$\pm$~\TDRkTenSDSeedOne\%, a change of \DeltaKTenSeedOne\ points, which \emph{fails} the
-one-point criterion. At FDR~=~1\%, the seed-1 change is \DeltaOneKTenSeedOne. My answer to the research
-question therefore depends on the training seed. The honest conclusion is that the effect of clustering
-is smaller than the noise my setup can resolve, not that it is zero.
+\textbf{More training seeds.} I trained \NSeeds\ models with different seeds (Table~\ref{tab:seeds}).
+Their all-minutiae TDR ranges from \AllSeedsMin\% to \AllSeedsMax\%, so retraining alone moves the
+baseline by more than the paper's whole $k=10$ effect. The change at $k=10$ is
+\DeltaSeedsMean~$\pm$~\DeltaSeedsSD\ points across seeds (range \DeltaSeedsMin\ to \DeltaSeedsMax), and
+\NSeedsPass\ of the \NSeeds\ seeds meet the one-point criterion. At FDR~=~1\%, where the threshold is less
+noisy, the change is \DeltaOneSeedsMean~$\pm$~\DeltaOneSeedsSD. My answer to the research question
+therefore depends on the training seed. The honest conclusion is that the effect of clustering is
+smaller than the noise my setup can resolve, not that it is zero.
 
 \begin{table}[t]
-\centering\caption{Two training seeds. ``Fixed thr.'': the all-minutiae threshold reused at $k=10$
+\centering\caption{Per training seed. ``Fixed thr.'': the all-minutiae threshold reused at $k=10$
 instead of recomputed, as stated in my proposal.}
 \label{tab:seeds}\resizebox{\columnwidth}{!}{\input{../results/table_seeds.tex}}
 \end{table}
@@ -238,9 +242,8 @@ non-constant outputs. And the first run of the second seed was killed for lack o
 test alongside it on the same 8~GB machine, so I reran it alone.
 
 \subsection{What I still cannot explain}
-First, why the second seed shows a three-point drop at $k=10$ when the first shows none. With two seeds
-I cannot tell whether this is a real seed effect or threshold noise; it would take many more seeds than my
-CPU budget allowed. Second, the roughly 500~ms of the paper's baseline latency that per-patch cost does not
+First, why the change at $k=10$ varies so much between training seeds (\DeltaSeedsMin\ to
+\DeltaSeedsMax). I cannot separate a real seed effect from threshold noise with \NSeeds\ seeds. Second, the roughly 500~ms of the paper's baseline latency that per-patch cost does not
 account for. Third, the paper's own 97.2\% versus 95.7\%. And fourth, the question my synthetic data cannot
 reach: whether the flat curve holds for real materials, where a spoof can look bona fide in one region and
 fake in another.

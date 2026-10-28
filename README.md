@@ -60,16 +60,17 @@ are Keras's MobileNet-v1 architecture, scikit-learn's `KMeans`, and OpenCV/sciki
    in inference mode.
 6. **Split.** Half of the bona fide images go to test (800). The paper used 1,000 of 5,743. The paper
    gives no spoof split, so we use a stratified 20% of each material.
-7. **Hardware.** We used a 2-core CPU. Timing runs on one CPU thread with TFLite 8-bit weights. The paper
+7. **Hardware.** Training hardware is recorded in `results/train_env.json`. Timing runs on one CPU thread
+   with TFLite 8-bit weights. The paper
    timed a phone, so only *relative* latency is compared.
-8. **Repeats.** The paper's "5-fold cross-validation" is read as 5 k-means seeds on one model. We add a
-   second training seed.
+8. **Repeats.** The paper's "5-fold cross-validation" is read as 5 k-means seeds on one model. We add
+   extra training seeds, listed in `SYNTHETIC` in `src/config.py`.
 
 **Numbers the paper does not report:**
 - random-minutiae ablation,
 - unweighted averaging,
 - nearest-minutia patch centres,
-- second training seed,
+- several training seeds,
 - fixed-threshold comparison,
 - TDR at FDR = 1%,
 - bootstrap error,
@@ -90,7 +91,7 @@ the git-ignored `work/` folder, because minutiae coordinates are a biometric tem
 conda env create -f environment.yml && conda activate spoofbuster-lite-repro
 
 # 1. Every number and figure in the write-up, from a clean checkout (synthetic data is regenerated from
-#    seeds; committed checkpoints are reused, add --retrain to retrain; ~1 h on 2 CPU cores, ~2.5 h with --retrain)
+#    seeds; committed checkpoints are reused, add --retrain to retrain; ~1 h on 2 CPU cores; ~40 min with --retrain on a Colab T4)
 bash run_all.sh --synthetic
 
 # 2. Rebuild every table, figure and number from the committed results only (~1 min)
