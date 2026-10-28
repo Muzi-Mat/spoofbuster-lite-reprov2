@@ -47,7 +47,7 @@ SYNTHETIC_T4 = dict(
     lr=1e-4,  # fine-tuning from ImageNet weights
     model_seeds=[0, 1, 2, 3],
 )
-SYNTHETIC = SYNTHETIC_CPU  # colab_synthetic_t4.ipynb switches this line to SYNTHETIC_T4
+SYNTHETIC = SYNTHETIC_T4  # colab_synthetic_t4.ipynb switches this line to SYNTHETIC_T4
 SYNTHETIC_DATA = dict(n_bona=1600, n_per_material=200)  # 1,600 bona fide, 6 materials x 200 = 1,200 spoofs
 
 

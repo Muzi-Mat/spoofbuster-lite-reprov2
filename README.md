@@ -52,12 +52,11 @@ are Keras's MobileNet-v1 architecture, scikit-learn's `KMeans`, and OpenCV/sciki
 4. **Framework.** We use Keras MobileNet-v1 instead of TF-Slim, which needs TensorFlow 1.x. The
    architecture is the same at a 96×96 input, and global average pooling over the 3×3 map equals the
    paper's 3×3 pool.
-5. **Training.** The paper gives no recipe. We train from random initialisation, because ImageNet weights
-   could not be downloaded on the machine used. Settings: Adam with lr 1e-3, batch 128, 5 epochs,
-   class-balanced loss, dropout 0.2, and at most 12 patches per training image (CPU time budget).
-   After training, BatchNorm running statistics are recomputed with the final weights
-   (`recalibrate_bn` in `src/train.py`). Without this step the from-scratch model gave a constant output
-   in inference mode.
+5. **Training.** The paper gives no recipe. The committed results use the `SYNTHETIC_T4` preset in
+   `src/config.py`: ImageNet initialisation, Adam with lr 1e-4, batch 128, 8 epochs, class-balanced loss,
+   dropout 0.2, at most 48 patches per training image, and 4 training seeds, trained on a Colab T4. An
+   earlier CPU run (`SYNTHETIC_CPU`, from scratch, git commit `921bd50`) is described in the write-up.
+   After training, BatchNorm statistics are recomputed with the final weights (`recalibrate_bn`).
 6. **Split.** Half of the bona fide images go to test (800). The paper used 1,000 of 5,743. The paper
    gives no spoof split, so we use a stratified 20% of each material.
 7. **Hardware.** Training hardware is recorded in `results/train_env.json`. Timing runs on one CPU thread
@@ -92,7 +91,7 @@ conda env create -f environment.yml && conda activate spoofbuster-lite-repro
 
 # 1. Every number and figure in the write-up, from a clean checkout (synthetic data is regenerated from
 #    seeds; committed checkpoints are reused, add --retrain to retrain; ~1 h on 2 CPU cores; ~40 min with --retrain on a Colab T4)
-bash run_all.sh --synthetic
+bash run_all.sh --synthetic          # uses committed checkpoints; add --retrain to retrain (T4 recommended)
 
 # 2. Rebuild every table, figure and number from the committed results only (~1 min)
 bash run_all.sh --report-only

@@ -1,0 +1,11 @@
+{
+ "gpu": "Tesla T4",
+ "cpu_count": 2,
+ "tensorflow": "2.21.0",
+ "model_seeds": [
+  0,
+  1,
+  2,
+  3
+ ]
+}

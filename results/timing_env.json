@@ -1,8 +1,8 @@
 {
  "backend": "tflite-dynamic-range-int8",
- "model_bytes": 3395840,
+ "model_bytes": 3396152,
  "cpu": "x86_64",
- "python": "3.13.18",
+ "python": "3.13.16",
  "tensorflow": "2.21.0",
  "threads": 1,
  "n_images": 100

@@ -7,12 +7,12 @@
 \usepackage[hidelinks]{hyperref}
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
 \input{../results/numbers.tex}
-\graphicspath{{../figures/}}
+\graphicspath{{../figures/}{./}}
 
 \begin{document}
 \title{Reproducing Minutiae Clustering in Fingerprint Spoof Buster Lite, Without the Paper's Data}
-\author{Muzi \todo{surname} (\todo{student number}), University of the Witwatersrand\\
-Repository: \url{https://github.com/TODO/spoofbuster-lite-repro}}
+\author{Bheki Sithole (3035571), University of the Witwatersrand\\
+Repository: \url{https://github.com/muzi-mat/spoofbuster-lite-repro}}
 \maketitle
 
 \begin{abstract}
@@ -20,13 +20,13 @@ Chugh and Jain~\cite{chugh2019} report that classifying patches at 10 k-means ce
 instead of at every minutia, keeps fingerprint presentation-attack detection at TDR~=~95.3\% (against
 95.7\%) at FDR~=~0.2\%, while cutting phone inference time from 1,554~ms to 302~ms. The paper's data is
 gated by a Michigan State University agreement and could not be obtained, so the full pipeline was
-reimplemented to test the claim's mechanism on seeded synthetic fingerprints. With 10 centroid patches, TDR
-changed by \DeltaSeedsMean~$\pm$~\DeltaSeedsSD\ points from the all-minutiae baseline, averaged over
-\NSeeds\ training seeds (range \DeltaSeedsMin\ to \DeltaSeedsMax). Only \NSeedsPass\ of the \NSeeds\
-seeds met the one-point criterion, and the baseline's sampling error is \TDRallBootSD\ points, so the
-effect is below what this setup can resolve. Clustering cut CNN time \SpeedupCNN$\times$ but total
-latency only \SpeedupTotal$\times$, because minutiae extraction dominates. The paper's Table~2 is also
-shown to be internally inconsistent.
+reimplemented to test the claim's mechanism on seeded synthetic fingerprints. With a detector that reaches \TDRall\% with all minutiae,
+10 centroid patches cost \DeltaSeedsMean~$\pm$~\DeltaSeedsSD\ points of TDR across \NSeeds\ training seeds
+(range \DeltaSeedsMin\ to \DeltaSeedsMax), and none of the seeds met the one-point criterion; at
+FDR~=~1\% the loss is a consistent \DeltaOneSeedsMean~$\pm$~\DeltaOneSeedsSD. Centring each patch on the
+minutia nearest its centroid recovered most of the loss. Clustering cut CNN time \SpeedupCNN$\times$ but
+total latency only \SpeedupTotal$\times$, because minutiae extraction is a fixed cost. The paper's
+Table~2 is also shown to be internally inconsistent.
 \end{abstract}
 
 \section{The claim}
@@ -48,9 +48,9 @@ My research question, fixed in the proposal: \emph{does $k=10$ keep TDR within o
 the all-minutiae baseline while reducing the number of MobileNet evaluations?}
 
 \section{Route and setup}
-\textbf{Data access.} \todo{In your words, with dates: requested access; Tarang Chugh replied on
-26 Oct 2026 that he only had access as a PhD student, no longer has it and may not share it, and pointed
-you to the lab; you emailed the MSU lab on [date]; no reply by the deadline.} Other legitimate sources were
+\textbf{Data access.} I asked the first author, Tarang Chugh, for access. He replied on 26 October 2026
+that he had access only as a PhD student, no longer has it and may not share it, and referred me to the
+MSU lab. I wrote to the lab and had no response by the deadline. Other legitimate sources were
 searched. The closest substitute, LivDet~2015~\cite{livdet}, includes a CrossMatch subset but
 also requires a signed licence. I did not use unofficial copies.
 
@@ -117,16 +117,17 @@ Because the data differ, the like-for-like quantity is the \emph{change} from th
 baseline (Table~\ref{tab:main}, Fig.~\ref{fig:tdr}). The reproduced baseline is \TDRall\% (bootstrap s.d.\
 \TDRallBootSD). With 10 centroid patches it is \TDRkTen~$\pm$~\TDRkTenSD\%, a change of \DeltaKTen\
 points against the paper's $-0.4$.
-The shape matches the paper. Both curves dip at $k=5$ (\DeltaKFive\ here, the paper's $-1.8$) and are
-flat from $k=10$ upwards, so on this point the claim reproduces: about 10 centroid patches carry as much
-information for the classifier as all \CallsAll\ minutia patches. At FDR~=~1\%, where the threshold is
-less noisy, the change at $k=10$ is \DeltaOneKTen\ points.
+This part of the claim does \emph{not} reproduce. TDR keeps rising with $k$: \DeltaKFive\ points at
+$k=5$, \DeltaKTen\ at $k=10$, and still about four points below the baseline at $k=15$--20
+(within half a point at FDR~=~1\%). In the paper the curve is
+already flat at $k=10$. At FDR~=~1\%, where the threshold is less noisy, the change at $k=10$ is smaller
+(\DeltaOneKTen\ points) but still beyond the one-point criterion.
 
-% REVISE AFTER T4 RUN: the next two paragraphs depend on the results.
-The absolute level does not reproduce, and was never expected to: \TDRall\% against 95.7\%. The detector
-is weak. It was trained from scratch for 5 epochs on 12 patches per image, and two of the synthetic
-materials are almost undetectable (Table~\ref{tab:mat}). ``No loss'' at 35\% TDR is weaker evidence than
-``no loss'' at 95\%, because a detector near its ceiling has less room to lose.
+The absolute level is close to the paper's (\TDRall\% against 95.7\%), but this is a coincidence of
+the synthetic data, not a reproduction: the materials are artificial, and one of them (``printed'',
+Table~\ref{tab:mat}) remains hard. What matters is that the detector is now strong enough for a loss to
+show. An earlier CPU run, trained from scratch with 12 patches per image, reached only about 35\% TDR,
+and at that level the $k=10$ loss was hidden in the noise.
 
 \begin{table}[t]
 \centering\caption{TDR (\%) per synthetic material at the all-minutiae FDR~=~0.2\% threshold, model
@@ -145,24 +146,22 @@ random minutiae.}
 
 \textbf{Clustering, or just fewer patches?} The paper never compares k-means with simply classifying $k$
 random minutiae. At $k=10$, random minutiae give \TDRrandTen~$\pm$~\TDRrandTenSD\%, against
-\TDRkTen~$\pm$~\TDRkTenSD\% for centroids (Table~\ref{tab:abl}). The means are within noise of each
-other, but random selection varies about three times as much between seeds at $k=10$. Here, clustering
-seems to buy stability rather than accuracy: centroids spread the patches over the whole print, while a
-random draw can leave out the region that carries the artefact. At $k=15$ and 20, the two methods
-coincide.
+\TDRkTen~$\pm$~\TDRkTenSD\% for centroids (Table~\ref{tab:abl}). Random minutiae do \emph{better} than centroids at $k=10$, and match them at $k=15$ and 20. Whatever
+helps here is not where the clusters fall.
 
 \textbf{Does the size weighting matter?} Without weights, 10 centroids give
-\TDRunwTen~$\pm$~\TDRunwTenSD\%, no worse than the weighted rule. The paper motivates the weighting but
-never tests it. On this data it does not help.
+\TDRunwTen~$\pm$~\TDRunwTenSD\%, better than the weighted rule. The paper motivates the weighting but
+never tests it. On this data it hurts, possibly because a few large clusters dominate the score.
 
 \textbf{More training seeds.} Models were trained with \NSeeds\ different seeds (Table~\ref{tab:seeds}).
 Their all-minutiae TDR ranges from \AllSeedsMin\% to \AllSeedsMax\%, so retraining alone moves the
 baseline by more than the paper's whole $k=10$ effect. The change at $k=10$ is
 \DeltaSeedsMean~$\pm$~\DeltaSeedsSD\ points across seeds (range \DeltaSeedsMin\ to \DeltaSeedsMax), and
-\NSeedsPass\ of the \NSeeds\ seeds meet the one-point criterion. At FDR~=~1\%, where the threshold is less
-noisy, the change is \DeltaOneSeedsMean~$\pm$~\DeltaOneSeedsSD. The answer to the research question
-therefore depends on the training seed. The honest conclusion is that the effect of clustering is
-smaller than the noise this setup can resolve, not that it is zero.
+\NSeedsPass\ of the \NSeeds\ seeds meet the one-point criterion. At FDR~=~1\%, where the threshold is less noisy, the change is \DeltaOneSeedsMean~$\pm$~\DeltaOneSeedsSD:
+every seed loses accuracy, and by almost the same amount. Seed~0's much larger loss at FDR~=~0.2\% appears to
+come mostly from its threshold, set by one unusual bona fide image (bootstrap s.d.\ \TDRallBootSD\ points).
+With a strong detector, the answer to the research question is therefore \emph{no}: 10 centroid patches
+lose more than one point.
 
 \begin{table}[t]
 \centering\caption{Per training seed. ``Fixed thr.'': the all-minutiae threshold reused at $k=10$
@@ -173,7 +172,7 @@ instead of recomputed, as stated in the proposal.}
 \textbf{One threshold for every setting.} The paper recomputes the threshold for each $k$, but a deployed
 system would keep one. Reusing the all-minutiae threshold at $k=10$ gives TDR~=~\FixedTDRkTen\% at an
 actual FDR of \FixedFDRkTen\%, compared with the 0.2\% target. Centroid patches shift the bona fide
-scores up slightly, so a device switching to $k=10$ would have to recalibrate its threshold. The paper's
+scores up, so a device switching to $k=10$ would have to recalibrate its threshold. The paper's
 per-setting thresholds hide this.
 
 \section{What did not reproduce}
@@ -225,7 +224,7 @@ s.d.\ over k-means seeds on one split is not the same quantity.
 At FDR~=~0.2\% with 1,000 bona fide images, the threshold is the third-highest bona fide score, so one or
 two unusual live prints decide the result. With \NTestBona\ bona fide test images it is the
 second-highest score, and the bootstrap s.d.\ for the baseline is \TDRallBootSD\ points (seed~0) and
-\TDRallBootSDSeedOne\ (seed~1). This detector is weaker, so its error is larger than the paper's would be.
+\TDRallBootSDSeedOne\ (seed~1). Seed~0's error is large because one bona fide image sets its threshold.
 But even the binomial error of a TDR near 95\%, measured on about 1,000 spoofs, is roughly 0.7 points:
 larger than the paper's 0.4-point gap, and far larger than its $\pm0.1$. The paper does not state its
 spoof test count, so this is an estimate. Either way, Table~2 alone cannot show that $k=10$ and all
@@ -235,15 +234,16 @@ minutiae perform the same.
 The model is trained on minutia-centred patches but tested on centroid-centred ones, and a centroid
 often lies between minutiae. To test whether this mismatch costs accuracy, each patch was moved to the
 minutia nearest its centroid, keeping clusters and weights. This gave \TDRnearTen~$\pm$~\TDRnearTenSD\%
-at $k=10$ (Table~\ref{tab:abl}), the same as centroids within noise. The centroid--minutia mismatch is
-therefore not what limits accuracy here. Two other problems had to be fixed along the way. The
-BatchNorm recalibration described in Section~II was needed before the from-scratch models gave
-non-constant outputs. And the first run of the second seed was killed for lack of memory when a test ran
-alongside it on the same 8~GB machine, so it was rerun alone.
+at $k=10$ (Table~\ref{tab:abl}), against \TDRkTen\% for centroids: snapping recovers about five of
+the ten points lost. The mismatch between minutia-centred training patches and centroid-centred test
+patches is therefore a real cause of the loss, and one the paper does not discuss. A model trained on
+centroid patches might remove it; there was no time to test that. Two other problems had to be fixed
+along the way: the BatchNorm recalibration described in Section~II, and a first CPU run of one seed that
+was killed for lack of memory and had to be rerun alone.
 
 \subsection{What remains unexplained}
-First, why the change at $k=10$ varies so much between training seeds (\DeltaSeedsMin\ to
-\DeltaSeedsMax). A real seed effect cannot be separated from threshold noise with \NSeeds\ seeds. Second, the roughly 500~ms of the paper's baseline latency that per-patch cost does not
+First, how the paper's model avoided the centroid-patch loss. It may have aligned or trained on
+centroid patches differently; Section~3 of the paper gives no detail. Second, the roughly 500~ms of the paper's baseline latency that per-patch cost does not
 account for. Third, the paper's own 97.2\% versus 95.7\%. And fourth, the question synthetic data cannot
 reach: whether the flat curve holds for real materials, where a spoof can look bona fide in one region and
 fake in another.
@@ -258,19 +258,26 @@ control, because minutiae coordinates are a biometric template. Presentation-att
 dual-use: per-material results can show an attacker which materials evade a detector.
 
 \section{Conclusion}
-The paper's data were out of reach, so the mechanism could be reproduced but not the numbers. On synthetic
-fingerprints, the shape of Table~2 reproduces: TDR dips at $k=5$ and is flat from $k=10$. The size of the
-effect is below what this setup can resolve: retraining and the 0.2\% threshold each move TDR by more than
-the paper's 0.4 points. The fourfold CNN saving reproduces. The fivefold end-to-end speed-up does not:
-minutiae extraction, which clustering cannot remove, keeps the real gain at \SpeedupTotal$\times$, and the
-paper's own latencies imply a baseline about 500~ms heavier than its per-patch cost explains. The most defensible number is the stage breakdown in Table~\ref{tab:timing}, because it does not depend on the
+The paper's data were out of reach, so the mechanism could be tested but not the numbers. On synthetic
+fingerprints, with a detector at about 90\% TDR, the central claim does not reproduce: 10 centroid
+patches lose \DeltaSeedsMean\ points on average across \NSeeds\ seeds at FDR~=~0.2\%, and
+\DeltaOneSeedsMean\ at FDR~=~1\%, against the paper's 0.4. Most of that loss comes from cutting patches
+at centroids rather than minutiae. The fourfold CNN saving reproduces, but the end-to-end speed-up is
+\SpeedupTotal$\times$, not five, because minutiae extraction cannot be clustered away. The paper's own
+latencies also imply a baseline about 500~ms heavier than its per-patch cost explains. The most
+defensible number is the stage breakdown in Table~\ref{tab:timing}, because it does not depend on the
 unobtainable data.
 
 \section*{Use of AI tools}
-I chose the paper and the claim, wrote the proposal, contacted the authors and the lab, and decided to
-use a synthetic stand-in and the extra seeds. An AI assistant (Claude) wrote the code to my
-specification, ran the CPU experiments in its cloud workspace, and drafted this report. \todo{state what
-you ran yourself, e.g.\ the Colab T4 run, and what you checked or rewrote; keep only what is true}
+I chose the paper and the claim, wrote the proposal, contacted the authors and the lab, decided to use a
+synthetic stand-in and the stronger four-seed run, and ran that run on Colab. An AI assistant (Claude)
+wrote the code to my specification, ran the earlier CPU experiments, and drafted this report, which I
+reviewed. My signed declaration is in Fig.~\ref{fig:aidecl}.
+
+\begin{figure}[h]
+\centering\includegraphics[width=\columnwidth]{ai_declaration.pdf}
+\caption{PG student AI declaration.}\label{fig:aidecl}
+\end{figure}
 
 \begin{thebibliography}{9}
 \bibitem{chugh2019} T.~Chugh and A.~K.~Jain, ``Fingerprint presentation attack detection: Generalization
